@@ -27,6 +27,18 @@ function getUserBehaviours() {
 function setUserBehaviours(obj) {
   writeJSON(userBehavioursPath, obj);
 }
+// Get behaviour for a user in a specific guild
+function getUserBehaviourForGuild(guildId, userId) {
+  const all = getUserBehaviours();
+  return all[guildId]?.[userId] || null;
+}
+// Set behaviour for a user in a specific guild
+function setUserBehaviourForGuild(guildId, userId, behaviour) {
+  const all = getUserBehaviours();
+  if (!all[guildId]) all[guildId] = {};
+  all[guildId][userId] = behaviour;
+  setUserBehaviours(all);
+}
 function getEnabledChannels() {
   return readJSON(enabledChannelsPath, []);
 }
@@ -62,6 +74,10 @@ async function registerSlashCommands(client) {
     new SlashCommandBuilder()
       .setName('disable')
       .setDescription('Disable bot in this channel')
+      .toJSON(),
+    new SlashCommandBuilder()
+      .setName('status')
+      .setDescription('Check if the bot is enabled in this channel')
       .toJSON(),
     new SlashCommandBuilder()
       .setName('behaviour')
@@ -127,12 +143,23 @@ client.on('interactionCreate', async (interaction) => {
       }
       break;
     }
+    case 'status': {
+      const channelId = interaction.channel.id;
+      const guildId = interaction.guildId;
+      const key = makeKey(guildId, channelId);
+      const enabled = getEnabledChannels();
+      if (enabled.includes(key)) {
+        await interaction.reply('Bot is **enabled** in this channel!');
+      } else {
+        await interaction.reply('Bot is **disabled** in this channel.');
+      }
+      break;
+    }
     case 'behaviour': {
       const userId = interaction.user.id;
+      const guildId = interaction.guildId;
       const behaviour = interaction.options.getString('type');
-      let userBehaviours = getUserBehaviours();
-      userBehaviours[userId] = behaviour;
-      setUserBehaviours(userBehaviours);
+      setUserBehaviourForGuild(guildId, userId, behaviour);
       await interaction.reply(`Your behaviour is now set to **${behaviour}**!`);
       break;
     }
@@ -157,9 +184,8 @@ client.on('messageCreate', async (message) => {
   const key = makeKey(message.guild.id, message.channel.id);
   if (!enabled.includes(key)) return;
 
-  // Check user behaviour
-  const userBehaviours = getUserBehaviours();
-  const behaviour = userBehaviours[message.author.id];
+  // Check user behaviour (per guild)
+  const behaviour = getUserBehaviourForGuild(message.guild.id, message.author.id);
   if (!behaviour) {
     await message.reply('Please choose a behaviour with /behaviour before chatting with me!');
     return;

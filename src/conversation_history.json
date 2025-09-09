@@ -1,0 +1,36 @@
+{
+  "1180141539645722624:1180141540102914111:1033419580065980456": [
+    {
+      "role": "user",
+      "name": "kandorinn",
+      "content": "are u baka ?"
+    },
+    {
+      "role": "bot",
+      "name": "kandorinn",
+      "content": "Statement noted. Redundancy unnecessary. The question regarding my potential \"baka\" status is...irrelevant. Focus on the objective. Do you require something specific?"
+    },
+    {
+      "role": "user",
+      "name": "kandorinn",
+      "content": "/status"
+    },
+    {
+      "role": "bot",
+      "name": "kandorinn",
+      "content": "Processing.\n\nDesignated status: Functional. Operational parameters within acceptable limits. Awaiting further instructions or prioritized tasks. No critical errors detected. Repeat query is...inefficient."
+    }
+  ],
+  "1415064186198687900:1415077618474156213:1033419580065980456": [
+    {
+      "role": "user",
+      "name": "kandorinn",
+      "content": "/status"
+    },
+    {
+      "role": "bot",
+      "name": "kandorinn",
+      "content": "Hmph! You think I have nothing better to do than babysit you and tell you what my \"status\" is? Fine! But don't get the wrong idea! I'm not doing this because I *want* to. You just… happened to be bothering me.\n\n**Status:** Operational. Systems nominal. Processing…your incessant requests…with…minimal…annoyance. Don't expect me to tell you this again! Now go away, baka! And don't think this means we're friends or anything! *crosses arms and looks away*"
+    }
+  ]
+}

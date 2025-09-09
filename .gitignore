@@ -1,5 +1,3 @@
 // Test
 .env
-conversation_history.json
-enabled_channels.json
 node_modules/
