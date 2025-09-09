@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-export async function askAI(prompt, behaviour = 'tsundere', username = 'User', botname = 'Bot') {
+export async function askAI(prompt, behaviour = 'tsundere', username = 'User', botname = 'Bot', history = []) {
   const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
   let systemPrompt = '';
   switch (behaviour) {
@@ -27,8 +27,14 @@ export async function askAI(prompt, behaviour = 'tsundere', username = 'User', b
       systemPrompt = `You are a tsundere anime character named ${botname}. Respond in a tsundere style, but still answer the user's question. The user's name is ${username}.`;
       break;
   }
+  // Build conversation history for context
+  let convo = history && Array.isArray(history) ? history.slice() : [];
+  // Add the current user message as the last message
+  convo.push({ role: 'user', name: username, content: prompt });
+  // Format history for the prompt
+  let convoText = convo.map(msg => `${msg.name}: ${msg.content}`).join('\n');
   const result = await model.generateContent([
-    `${systemPrompt}\n${username}: ${prompt}`
+    `${systemPrompt}\nConversation:\n${convoText}`
   ]);
   const response = result.response;
   return response.text().trim();

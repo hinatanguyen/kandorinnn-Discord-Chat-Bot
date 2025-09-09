@@ -1,43 +1,59 @@
-// index.js
-import 'dotenv/config';
-import { Client, GatewayIntentBits } from 'discord.js';
 
+import 'dotenv/config';
+import fs from 'fs';
+import { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } from 'discord.js';
 import { askAI } from './src/ai.js';
+
+
+// === Constants ===
 const userBehavioursPath = './src/user_behaviours.json';
-function getUserBehaviours() {
+const enabledChannelsPath = './src/enabled_channels.json';
+const conversationHistoryPath = './src/conversation_history.json';
+
+// === Utility Functions ===
+function readJSON(path, fallback) {
   try {
-    return JSON.parse(fs.readFileSync(userBehavioursPath, 'utf8'));
+    return JSON.parse(fs.readFileSync(path, 'utf8'));
   } catch {
-    return {};
+    return fallback;
   }
+}
+function writeJSON(path, obj) {
+  fs.writeFileSync(path, JSON.stringify(obj, null, 2));
+}
+function getUserBehaviours() {
+  return readJSON(userBehavioursPath, {});
 }
 function setUserBehaviours(obj) {
-  fs.writeFileSync(userBehavioursPath, JSON.stringify(obj, null, 2));
+  writeJSON(userBehavioursPath, obj);
 }
-import fs from 'fs';
-const enabledChannelsPath = './src/enabled_channels.json';
 function getEnabledChannels() {
-  try {
-    return JSON.parse(fs.readFileSync(enabledChannelsPath, 'utf8'));
-  } catch (e) {
-    return [];
-  }
+  return readJSON(enabledChannelsPath, []);
 }
 function setEnabledChannels(channels) {
-  fs.writeFileSync(enabledChannelsPath, JSON.stringify(channels, null, 2));
+  writeJSON(enabledChannelsPath, channels);
+}
+function getConversationHistory() {
+  return readJSON(conversationHistoryPath, {});
+}
+function setConversationHistory(obj) {
+  writeJSON(conversationHistoryPath, obj);
 }
 function makeKey(guildId, channelId) {
   return `${guildId}:${channelId}`;
 }
-import { REST, Routes, SlashCommandBuilder } from 'discord.js';
-
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 
 
-client.once('ready', async () => {
-  console.log(`Logged in as ${client.user.tag}!`);
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
+});
 
-  // Register slash commands
+// === Slash Command Registration ===
+async function registerSlashCommands(client) {
   const commands = [
     new SlashCommandBuilder()
       .setName('enable')
@@ -74,79 +90,106 @@ client.once('ready', async () => {
   } catch (error) {
     console.error('Error registering slash command:', error);
   }
+}
+
+// === Event Handlers ===
+client.once('ready', async () => {
+  console.log(`Logged in as ${client.user.tag}!`);
+  await registerSlashCommands(client);
 });
+
 
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
   const channelId = interaction.channel.id;
   const guildId = interaction.guildId;
   const key = makeKey(guildId, channelId);
-  if (interaction.commandName === 'enable') {
-    let enabled = getEnabledChannels();
-    if (!enabled.includes(key)) {
-      enabled.push(key);
-      setEnabledChannels(enabled);
-      await interaction.reply('Bot enabled in this channel!');
-    } else {
-      await interaction.reply('Bot is already enabled in this channel!');
+  switch (interaction.commandName) {
+    case 'enable': {
+      let enabled = getEnabledChannels();
+      if (!enabled.includes(key)) {
+        enabled.push(key);
+        setEnabledChannels(enabled);
+        await interaction.reply('Bot enabled in this channel!');
+      } else {
+        await interaction.reply('Bot is already enabled in this channel!');
+      }
+      break;
     }
-    return;
-  }
-  if (interaction.commandName === 'disable') {
-    let enabled = getEnabledChannels();
-    if (enabled.includes(key)) {
-      enabled = enabled.filter(id => id !== key);
-      setEnabledChannels(enabled);
-      await interaction.reply('Bot disabled in this channel!');
-    } else {
-      await interaction.reply('Bot is already disabled in this channel!');
+    case 'disable': {
+      let enabled = getEnabledChannels();
+      if (enabled.includes(key)) {
+        enabled = enabled.filter(id => id !== key);
+        setEnabledChannels(enabled);
+        await interaction.reply('Bot disabled in this channel!');
+      } else {
+        await interaction.reply('Bot is already disabled in this channel!');
+      }
+      break;
     }
-    return;
-  }
-  if (interaction.commandName === 'behaviour') {
-    const userId = interaction.user.id;
-    const behaviour = interaction.options.getString('type');
-    let userBehaviours = getUserBehaviours();
-    userBehaviours[userId] = behaviour;
-    setUserBehaviours(userBehaviours);
-    await interaction.reply(`Your behaviour is now set to **${behaviour}**!`);
-    return;
+    case 'behaviour': {
+      const userId = interaction.user.id;
+      const behaviour = interaction.options.getString('type');
+      let userBehaviours = getUserBehaviours();
+      userBehaviours[userId] = behaviour;
+      setUserBehaviours(userBehaviours);
+      await interaction.reply(`Your behaviour is now set to **${behaviour}**!`);
+      break;
+    }
+    default:
+      break;
   }
 });
+
 
 
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
   if (!message.guild) return; // Ignore DMs
+
+  // Check bot permissions
   const botMember = await message.guild.members.fetchMe();
   const botPermissions = message.channel.permissionsFor(botMember);
   if (!botPermissions || !botPermissions.has('SendMessages')) return;
 
-  let enabled = getEnabledChannels();
+  // Check if bot is enabled in this channel
+  const enabled = getEnabledChannels();
   const key = makeKey(message.guild.id, message.channel.id);
-  if (!enabled.includes(key)) {
-    return;
-  }
+  if (!enabled.includes(key)) return;
 
   // Check user behaviour
-  let userBehaviours = getUserBehaviours();
+  const userBehaviours = getUserBehaviours();
   const behaviour = userBehaviours[message.author.id];
   if (!behaviour) {
     await message.reply('Please choose a behaviour with /behaviour before chatting with me!');
     return;
   }
 
+  // Prepare user and bot names
   const userMessage = message.content.trim();
   if (!userMessage) return;
   const username = message.member?.displayName || message.author.username;
-  // Get the bot's nickname or username for this guild
   let botname = client.user.username;
   try {
     const botMember = await message.guild.members.fetch(client.user.id);
     botname = botMember.displayName || client.user.username;
   } catch {}
+
+  // Conversation history (per user per channel)
+  const convoKey = `${message.guild.id}:${message.channel.id}:${message.author.id}`;
+  let convoHistory = getConversationHistory();
+  if (!convoHistory[convoKey]) convoHistory[convoKey] = [];
+  // Add the new user message
+  convoHistory[convoKey].push({ role: 'user', name: username, content: userMessage });
+  // Keep only the last 6 messages (user+bot)
+  if (convoHistory[convoKey].length > 6) convoHistory[convoKey] = convoHistory[convoKey].slice(-6);
+
   try {
-    const aiReply = await askAI(userMessage, behaviour, username, botname);
+    const aiReply = await askAI(userMessage, behaviour, username, botname, convoHistory[convoKey]);
+    // Add bot reply to history
+    convoHistory[convoKey].push({ role: 'bot', name: botname, content: aiReply });
+    if (convoHistory[convoKey].length > 6) convoHistory[convoKey] = convoHistory[convoKey].slice(-6);
+    setConversationHistory(convoHistory);
     await message.reply(aiReply);
   } catch (err) {
     await message.reply("Ugh, something went wrong! It's not like I wanted to help you anyway!");
@@ -154,4 +197,6 @@ client.on('messageCreate', async (message) => {
   }
 });
 
+
+// === Start Bot ===
 client.login(process.env.CHATBOT_TOKEN);
