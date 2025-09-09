@@ -3,4 +3,4 @@
 node_modules/
 src/enabled_channels.json
 src/conversation_history.json
-src/user_behavior.json
+src/user_behaviours.json
